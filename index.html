@@ -49,6 +49,8 @@
   #guide.show { display: block; }
   /* 공략도 이미지(1000x816)에서 홀 그림 부분(90,185 ~ 410,800)만 보이게 */
   #guide div { position: absolute; left: 50%; width: 320px; height: 615px; background: no-repeat -90px -185px / 1000px 816px; }
+  #gme { position: absolute; width: 16px; height: 16px; margin: -8px; border-radius: 50%; background: #09f; border: 3px solid #fff;
+         box-shadow: 0 0 0 2px #09f; display: none; }
   .pin { width: 14px; height: 14px; border-radius: 50%; border: 2px solid #fff; }
 </style>
 </head>
@@ -75,7 +77,7 @@
     <button id="editDone">완료</button>
   </div>
 </div>
-<div id="guide"><div></div></div>
+<div id="guide"><div><i id="gme"></i></div></div>
 <div id="tapinfo" style="display:block">💡 지도를 누르면 그 지점까지 거리가 나와요</div>
 
 <div id="bot" class="bar">
@@ -163,6 +165,17 @@ const DEFAULT_PTS = {
   M8: {tee:[37.051136,127.388052],f:[37.05225,127.387417],c:[37.05233,127.387371],b:[37.052437,127.38731]},
   M9: {tee:[37.053704,127.388427],f:[37.056152,127.385795],c:[37.056236,127.385705],b:[37.056319,127.385615]},
 };
+// 공략도 이미지(1000x816)에서 찾은 [핀 x,y, 화이트티 x,y] 픽셀
+const GUIDE = { L1:[258,322,216,663], L2:[257,400,240,632], L3:[247,343,253,637], L4:[248,312,255,675], L5:[262,296,280,700], L6:[272,393,277,589], L7:[220,312,260,696], L8:[227,283,260,689], L9:[234,308,226,679], V1:[252,301,253,679], V2:[224,396,259,614], V3:[248,292,253,700], V4:[238,277,244,690], V5:[246,301,263,673], V6:[271,271,257,707], V7:[198,320,210,629], V8:[211,363,212,608], V9:[230,278,231,708], M1:[219,297,212,655], M2:[201,323,234,674], M3:[201,309,222,689], M4:[227,368,235,618], M5:[236,334,250,635], M6:[211,333,215,676], M7:[236,308,241,705], M8:[233,392,234,630], M9:[237,292,232,702] };
+// 내 위치 → 공략도 픽셀: 그린을 핀에 맞추고, 티→그린 방향을 그림의 화이트티→핀 방향으로 회전,
+// 축척은 화이트티 거리 기준. ponytail: 직선 2점 맞춤이라 도그렉 홀은 꺾이는 곳에서 수십 m 어긋날 수 있음
+function guideXY([px, py, tx, ty], tee, c, me, lenW) {
+  const en = q => [(q[1] - c[1]) * 111320 * Math.cos(rad(c[0])), (q[0] - c[0]) * 110540];
+  const T = en(tee), tl = Math.hypot(...T), g = [-T[0] / tl, -T[1] / tl];
+  const r = en(me), al = r[0] * g[0] + r[1] * g[1], lt = r[0] * g[1] - r[1] * g[0];
+  const il = Math.hypot(px - tx, py - ty), u = [(px - tx) / il, (py - ty) / il], s = il / lenW;
+  return [px + s * (al * u[0] - lt * u[1]), py + s * (al * u[1] + lt * u[0])];
+}
 
 // 저장소: pts = 홀 좌표, cur = 진행중 라운드, rounds = 지난 라운드
 let db = { pts: {}, cur: null, rounds: [] };
@@ -182,6 +195,13 @@ console.assert(Math.round(dist([37, 127], [37.001, 127])) === 111, 'dist check')
 const azim = (a, b) => { const y = Math.sin(rad(b[1] - a[1])) * Math.cos(rad(b[0])),
   x = Math.cos(rad(a[0])) * Math.sin(rad(b[0])) - Math.sin(rad(a[0])) * Math.cos(rad(b[0])) * Math.cos(rad(b[1] - a[1]));
   return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360; };
+{ // 그린에 서면 핀, 그린에서 티쪽으로 lenW 만큼 오면 화이트티 픽셀
+  const c = [37, 127], tee = [37 - 300 / 110540, 127], at = (m, d) => guideXY([200, 300, 200, 600], tee, c, m, 300);
+  const [x1, y1] = at(c), [x2, y2] = at(tee);
+  console.assert(Math.round(x1) === 200 && Math.round(y1) === 300 && Math.round(x2) === 200 && Math.round(y2) === 600, 'guideXY check');
+  const [x3] = guideXY([200, 300, 200, 600], tee, c, [37, 127 + 10 / 88900], 300); // 그린 동쪽(오른쪽) 10m
+  console.assert(x3 > 205, 'guideXY right check');
+}
 console.assert(Math.round(azim([37, 127], [37, 127.001])) === 90, 'azim check');
 
 // 지도
@@ -222,6 +242,10 @@ function render(fit) {
   gi.style.backgroundImage = `url(https://www.edenblue.co.kr/image/course/${holeKey(i).toLowerCase()}.jpg)`;
   gi.style.top = t + (innerHeight - t - bh) / 2 + 'px';
   gi.style.transform = `translate(-50%,-50%) scale(${Math.min((innerHeight - t - bh - 10) / 615, innerWidth / 320)})`;
+  const gm = $('gme'), gp = GUIDE[holeKey(i)];
+  const gxy = gp && myPos && p.tee && p.c && dist(myPos, p.c) < 600 && guideXY(gp, p.tee, p.c, myPos, NINES[r.nines[i < 9 ? 0 : 1]].len.White[i % 9]);
+  gm.style.display = gxy && gxy[0] > 90 && gxy[0] < 410 && gxy[1] > 185 && gxy[1] < 800 ? 'block' : 'none';
+  if (gxy) { gm.style.left = gxy[0] - 90 + 'px'; gm.style.top = gxy[1] - 185 + 'px'; }
   layer.clearLayers();
   for (const k in COLORS) if (p[k]) L.marker(p[k], { icon: dot(COLORS[k]) }).addTo(layer);
   if (p.tee && p.c) {

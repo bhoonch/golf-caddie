@@ -110,7 +110,7 @@
     <li><b>메뉴(☰)</b>에서 오늘 도는 <b>전반·후반 코스</b>와 <b>티</b>를 고르고 <b>[새 라운드 시작]</b>.</li>
     <li>위치 권한을 <b>허용</b>하면 화면 위에 <b>그린 앞·중앙·뒤까지 거리(m)</b>가 나옵니다. 노란 숫자가 중앙.</li>
     <li>홀을 마치면 아래 <b>[다음홀 ▶]</b>. 홀은 자동으로 넘어가지 않아요.</li>
-    <li><b>타수 +</b>를 처음 누르면 <b>파</b>로 시작합니다. 퍼트도 +/−로.</li>
+    <li><b>타수 +</b>는 누를 때마다 1타씩 올라가요. 퍼트도 같아요 (퍼트도 타수에 포함해서 세요).</li>
     <li><b>지도를 누르면</b> 나→그 지점, 그 지점→그린 거리가 나옵니다 (레이업·벙커 확인용).</li>
     <li><b>[🔊 거리듣기]</b>: 화면 안 보고 거리를 음성으로.</li>
     <li>그린 위치가 틀리면 메뉴 → <b>[이 홀 좌표 편집]</b>.</li>
@@ -318,10 +318,10 @@ const go = d => { const r = db.cur; r.hole = Math.max(0, Math.min(17, r.hole + d
 $('prev').onclick = () => go(-1);
 $('next').onclick = () => go(1);
 
-// 스코어 입력: 첫 + 는 파부터 시작
+// 스코어 입력: + 한 번 = 1타, 1퍼트
 document.querySelectorAll('[data-f]').forEach(b => b.onclick = () => {
   const s = db.cur.scores[db.cur.hole], f = b.dataset.f, d = +b.dataset.d;
-  if (f === 's') s.s = Math.max(1, s.s ? s.s + d : holeInfo(db.cur.hole).par);
+  if (f === 's') s.s = Math.max(0, (s.s || 0) + d); // 0 = 미입력
   else s.p = Math.max(0, (s.p ?? 0) + d);
   save(); render();
 });

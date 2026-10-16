@@ -30,7 +30,7 @@
   #dist .c b { font-size: 34px; color: #ff0; }
   #edit { display: none; width: 100%; gap: 6px; flex-wrap: wrap; }
   #edit.show { display: flex; }
-  #tapinfo { position: fixed; z-index: 1000; left: 50%; transform: translateX(-50%); top: 130px; background: rgba(0,0,0,.8);
+  #tapinfo { position: fixed; z-index: 1000; left: 50%; transform: translateX(-50%); bottom: calc(80px + env(safe-area-inset-bottom)); background: rgba(0,0,0,.8);
              padding: 6px 12px; border-radius: 10px; display: none; }
   .score { display: flex; align-items: center; gap: 4px; }
   .score span { min-width: 30px; text-align: center; font-size: 22px; font-weight: bold; line-height: 1; }
@@ -81,7 +81,7 @@
   </div>
 </div>
 <div id="guide"><div><i id="gme"></i></div></div>
-<div id="tapinfo" style="display:block">💡 지도를 누르면 그 지점까지 거리가 나와요</div>
+<div id="tapinfo" onclick="this.style.display='none'"></div>
 
 <div id="bot" class="bar">
   <button id="prev">◀<small>이전홀</small></button>

@@ -40,6 +40,9 @@
   td, th { border: 1px solid #444; padding: 4px 2px; }
   .menu { display: grid; gap: 8px; }
   .birdie { color: #6cf; } .bogey { color: #f96; }
+  #bot button small, #voice small { display: block; font-size: 10px; color: #aaa; }
+  #help ol { padding-left: 20px; line-height: 1.6; } #help li { margin-bottom: 6px; }
+  #editHint { width: 100%; font-size: 13px; color: #ff0; }
   .pin { width: 14px; height: 14px; border-radius: 50%; border: 2px solid #fff; }
 </style>
 </head>
@@ -48,7 +51,7 @@
 
 <div id="top" class="bar">
   <div id="info"></div>
-  <button id="menuBtn">☰</button>
+  <button id="menuBtn">☰ 메뉴</button>
   <div id="gps"></div>
   <div id="dist">
     <div>앞<b id="dF">-</b></div>
@@ -56,6 +59,7 @@
     <div>뒤<b id="dB">-</b></div>
   </div>
   <div id="edit">
+    <div id="editHint">① 아래에서 바꿀 지점을 고르고 ② 지도에서 그 위치를 누르세요 (또는 [현재위치로])</div>
     <button data-k="tee">티</button>
     <button data-k="f">그린 앞</button>
     <button data-k="c">그린 중앙</button>
@@ -64,14 +68,14 @@
     <button id="editDone">완료</button>
   </div>
 </div>
-<div id="tapinfo"></div>
+<div id="tapinfo" style="display:block">💡 지도를 누르면 그 지점까지 거리가 나와요</div>
 
 <div id="bot" class="bar">
-  <button id="prev">◀</button>
+  <button id="prev">◀<small>이전홀</small></button>
   <div class="score"><button data-d="-1" data-f="s">−</button><span><small>타수</small><b id="sS">-</b></span><button data-d="1" data-f="s">+</button></div>
   <div class="score"><button data-d="-1" data-f="p">−</button><span><small>퍼트</small><b id="sP">-</b></span><button data-d="1" data-f="p">+</button></div>
-  <button id="voice">🔊</button>
-  <button id="next">▶</button>
+  <button id="voice">🔊<small>거리듣기</small></button>
+  <button id="next">▶<small>다음홀</small></button>
 </div>
 
 <dialog id="menu">
@@ -80,13 +84,29 @@
     <label>전반 <select id="n1"></select></label>
     <label>후반 <select id="n2"></select></label>
     <label>티 <select id="teeSel"><option>Black</option><option>Blue</option><option selected>White</option><option>Red</option></select></label>
-    <button id="newRound">새 라운드 시작</button>
+    <button id="newRound" class="on">새 라운드 시작</button>
+    <button id="helpBtn">사용법</button>
     <button id="cardBtn">스코어카드</button>
     <button id="editBtn">이 홀 좌표 편집</button>
     <button id="histBtn">지난 라운드</button>
     <button id="exportBtn">백업 내보내기</button>
     <label style="display:block">백업 불러오기 <input type="file" id="importFile" accept=".json"></label>    <button onclick="menu.close()">닫기</button>
   </div>
+</dialog>
+
+<dialog id="help">
+  <h3 style="margin-top:0">⛳ 이렇게 쓰세요</h3>
+  <ol>
+    <li><b>메뉴(☰)</b>에서 오늘 도는 <b>전반·후반 코스</b>와 <b>티</b>를 고르고 <b>[새 라운드 시작]</b>.</li>
+    <li>위치 권한을 <b>허용</b>하면 화면 위에 <b>그린 앞·중앙·뒤까지 거리(m)</b>가 나옵니다. 노란 숫자가 중앙.</li>
+    <li>홀을 마치면 아래 <b>[다음홀 ▶]</b>. 홀은 자동으로 넘어가지 않아요.</li>
+    <li><b>타수 +</b>를 처음 누르면 <b>파</b>로 시작합니다. 퍼트도 +/−로.</li>
+    <li><b>지도를 누르면</b> 나→그 지점, 그 지점→그린 거리가 나옵니다 (레이업·벙커 확인용).</li>
+    <li><b>[🔊 거리듣기]</b>: 화면 안 보고 거리를 음성으로.</li>
+    <li>그린 위치가 틀리면 메뉴 → <b>[이 홀 좌표 편집]</b>.</li>
+    <li>기록은 이 폰에만 저장돼요. 폰 바꾸기 전엔 메뉴 → <b>[백업 내보내기]</b>.</li>
+  </ol>
+  <button class="on" onclick="help.close(); menu.showModal()" style="width:100%">코스 고르러 가기</button>
 </dialog>
 
 <dialog id="card"><div id="cardBody"></div><button onclick="card.close()" style="margin-top:10px">닫기</button></dialog>
@@ -228,6 +248,7 @@ document.querySelectorAll('#edit [data-k]').forEach(b => b.onclick = () => {
 $('here').onclick = () => { if (editKey && myPos) { pts()[editKey] = myPos; save(); render(); } };
 $('editDone').onclick = () => { editKey = null; $('edit').classList.remove('show');
   document.querySelectorAll('#edit [data-k]').forEach(x => x.classList.remove('on')); };
+$('helpBtn').onclick = () => { menu.close(); help.showModal(); };
 $('editBtn').onclick = () => { menu.close(); $('edit').classList.add('show'); $('edit').querySelector('[data-k]').click(); };
 
 // 홀 이동
@@ -300,7 +321,7 @@ $('importFile').onchange = async e => {
   } catch { alert('백업 파일 형식이 아닙니다'); }
 };
 
-if (!db.cur) db.cur = newRound();
+if (!db.cur) { db.cur = newRound(); save(); help.showModal(); }
 render(true);
 </script>
 </body>

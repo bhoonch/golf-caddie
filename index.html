@@ -226,11 +226,11 @@ function render(fit) {
   for (const k in COLORS) if (p[k]) L.marker(p[k], { icon: dot(COLORS[k]) }).addTo(layer);
   if (p.tee && p.c) {
     L.polyline([p.tee, p.c], { color: '#fff', weight: 1, dashArray: '4' }).addTo(layer);
-    // 보이스캐디식 남은거리 링: 그린 중앙 기준 50m 간격
-    const len = dist(p.tee, p.c);
-    for (let d = 50; d < len - 20; d += 50) {
-      L.circle(p.c, { radius: d, color: d % 100 ? '#fff' : '#ff0', weight: 1, opacity: .6, fill: false, interactive: false }).addTo(layer);
-      const t = d / len, at = [p.c[0] + (p.tee[0] - p.c[0]) * t, p.c[1] + (p.tee[1] - p.c[1]) * t];
+    // 거리 링: 내 위치 기준 50m 간격(= 칠 거리). 코스 밖이면 티 기준
+    const o = myPos && dist(myPos, p.c) < 600 ? myPos : p.tee, len = dist(o, p.c);
+    for (let d = 50; d < len + 20; d += 50) {
+      L.circle(o, { radius: d, color: d % 100 ? '#fff' : '#ff0', weight: 1, opacity: .6, fill: false, interactive: false }).addTo(layer);
+      const t = d / len, at = [o[0] + (p.c[0] - o[0]) * t, o[1] + (p.c[1] - o[1]) * t];
       L.marker(at, { interactive: false, icon: L.divIcon({ className: 'ring', html: d, iconSize: [30, 14], iconAnchor: [-6, 7] }) }).addTo(layer);
     }
   }

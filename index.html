@@ -9,6 +9,7 @@
 <title>골프 캐디</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/leaflet-rotate@0.2.8/dist/leaflet-rotate.min.js"></script>
 <style>
   * { box-sizing: border-box; }
   html, body { margin: 0; height: 100%; background: #111; color: #fff; font: 16px system-ui, sans-serif; }
@@ -43,6 +44,7 @@
   #bot button small, #voice small { display: block; font-size: 10px; color: #aaa; }
   #help ol { padding-left: 20px; line-height: 1.6; } #help li { margin-bottom: 6px; }
   #editHint { width: 100%; font-size: 13px; color: #ff0; }
+  .ring { color: #fff; font: bold 12px system-ui; text-shadow: 0 0 3px #000, 0 0 3px #000; white-space: nowrap; }
   .pin { width: 14px; height: 14px; border-radius: 50%; border: 2px solid #fff; }
 </style>
 </head>
@@ -170,9 +172,14 @@ function dist(a, b) {
   return 2 * R * Math.asin(Math.sqrt(h));
 }
 console.assert(Math.round(dist([37, 127], [37.001, 127])) === 111, 'dist check');
+// 방위각(북=0, 시계방향)
+const azim = (a, b) => { const y = Math.sin(rad(b[1] - a[1])) * Math.cos(rad(b[0])),
+  x = Math.cos(rad(a[0])) * Math.sin(rad(b[0])) - Math.sin(rad(a[0])) * Math.cos(rad(b[0])) * Math.cos(rad(b[1] - a[1]));
+  return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360; };
+console.assert(Math.round(azim([37, 127], [37, 127.001])) === 90, 'azim check');
 
 // 지도
-const map = L.map('map', { zoomControl: false, attributionControl: false }).setView(CENTER, 16);
+const map = L.map('map', { zoomControl: false, attributionControl: false, rotate: true, rotateControl: false, touchRotate: false, zoomSnap: 0.25 }).setView(CENTER, 16);
 // 브이월드(국토부) 항공사진 19레벨. 타일이 실패하면 아래 Esri(한국은 18레벨까지)가 보임
 L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
   { maxNativeZoom: 18, maxZoom: 21 }).addTo(map);
@@ -204,8 +211,24 @@ function render(fit) {
   $('sP').textContent = s.p ?? '-';
   layer.clearLayers();
   for (const k in COLORS) if (p[k]) L.marker(p[k], { icon: dot(COLORS[k]) }).addTo(layer);
-  if (p.tee && p.c) L.polyline([p.tee, p.c], { color: '#fff', weight: 1, dashArray: '4' }).addTo(layer);
-  if (fit) {
+  if (p.tee && p.c) {
+    L.polyline([p.tee, p.c], { color: '#fff', weight: 1, dashArray: '4' }).addTo(layer);
+    // 보이스캐디식 남은거리 링: 그린 중앙 기준 50m 간격
+    const len = dist(p.tee, p.c);
+    for (let d = 50; d < len - 20; d += 50) {
+      L.circle(p.c, { radius: d, color: d % 100 ? '#fff' : '#ff0', weight: 1, opacity: .6, fill: false, interactive: false }).addTo(layer);
+      const t = d / len, at = [p.c[0] + (p.tee[0] - p.c[0]) * t, p.c[1] + (p.tee[1] - p.c[1]) * t];
+      L.marker(at, { interactive: false, icon: L.divIcon({ className: 'ring', html: d, iconSize: [30, 14], iconAnchor: [-6, 7] }) }).addTo(layer);
+    }
+  }
+  if (fit && p.tee && p.c) {
+    // 티가 아래, 그린이 위로 오도록 회전하고 홀 전체가 화면에 들어오게 줌
+    map.setBearing(-azim(p.tee, p.c));
+    const h = Math.max(200, innerHeight - 280), len = dist(p.tee, p.c) * 1.25;
+    const z = Math.log2(156543 * Math.cos(rad(p.c[0])) * h / len);
+    map.setView([(p.tee[0] + p.c[0]) / 2, (p.tee[1] + p.c[1]) / 2], Math.min(19, Math.floor(z * 4) / 4), { animate: false });
+  } else if (fit) {
+    map.setBearing(0);
     const ll = Object.values(p);
     if (ll.length > 1) map.fitBounds(ll, { padding: [40, 160] });
     else if (ll.length) map.setView(ll[0], 18);

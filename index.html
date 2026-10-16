@@ -85,9 +85,7 @@
     <button id="editBtn">이 홀 좌표 편집</button>
     <button id="histBtn">지난 라운드</button>
     <button id="exportBtn">백업 내보내기</button>
-    <label style="display:block">백업 불러오기 <input type="file" id="importFile" accept=".json"></label>
-    <button id="vkeyBtn">브이월드 인증키 설정</button>
-    <button onclick="menu.close()">닫기</button>
+    <label style="display:block">백업 불러오기 <input type="file" id="importFile" accept=".json"></label>    <button onclick="menu.close()">닫기</button>
   </div>
 </dialog>
 
@@ -125,11 +123,11 @@ console.assert(Math.round(dist([37, 127], [37.001, 127])) === 111, 'dist check')
 
 // 지도
 const map = L.map('map', { zoomControl: false, attributionControl: false }).setView(CENTER, 16);
-// 브이월드 키가 있으면 국토부 고해상도 항공사진, 없으면 Esri (한국은 18레벨까지만 있음)
-let vkey = ''; try { vkey = localStorage.vworldKey || ''; } catch {}
-L.tileLayer(vkey ? `https://api.vworld.kr/req/wmts/1.0.0/${vkey}/Satellite/{z}/{y}/{x}.jpeg`
-  : 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-  { maxNativeZoom: vkey ? 19 : 18, maxZoom: 21 }).addTo(map);
+// 브이월드(국토부) 항공사진 19레벨. 타일이 실패하면 아래 Esri(한국은 18레벨까지)가 보임
+L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+  { maxNativeZoom: 18, maxZoom: 21 }).addTo(map);
+L.tileLayer('https://xdworld.vworld.kr/2d/Satellite/service/{z}/{x}/{y}.jpeg',
+  { maxNativeZoom: 19, maxZoom: 21 }).addTo(map);
 const dot = c => L.divIcon({ html: `<div class="pin" style="background:${c}"></div>`, className: '', iconSize: [14, 14] });
 const COLORS = { tee: '#39f', f: '#fa0', c: '#f33', b: '#a0f' };
 const layer = L.layerGroup().addTo(map);
@@ -268,13 +266,6 @@ $('importFile').onchange = async e => {
     if (!d.pts || !Array.isArray(d.rounds)) throw 0;
     db = d; save(); menu.close(); render(true);
   } catch { alert('백업 파일 형식이 아닙니다'); }
-};
-
-$('vkeyBtn').onclick = () => {
-  const k = prompt('브이월드 인증키 (비우면 기본 지도)', vkey);
-  if (k == null) return;
-  try { localStorage.vworldKey = k.trim(); } catch {}
-  location.reload();
 };
 
 if (!db.cur) db.cur = newRound();

@@ -45,6 +45,10 @@
   #help ol { padding-left: 20px; line-height: 1.6; } #help li { margin-bottom: 6px; }
   #editHint { width: 100%; font-size: 13px; color: #ff0; }
   .ring { color: #fff; font: bold 12px system-ui; text-shadow: 0 0 3px #000, 0 0 3px #000; white-space: nowrap; }
+  #guide { position: fixed; inset: 0; z-index: 900; background: #fff; display: none; overflow: hidden; }
+  #guide.show { display: block; }
+  /* 공략도 이미지(1000x816)에서 홀 그림 부분(90,185 ~ 410,800)만 보이게 */
+  #guide div { position: absolute; left: 50%; width: 320px; height: 615px; background: no-repeat -90px -185px / 1000px 816px; }
   .pin { width: 14px; height: 14px; border-radius: 50%; border: 2px solid #fff; }
 </style>
 </head>
@@ -53,6 +57,7 @@
 
 <div id="top" class="bar">
   <div id="info"></div>
+  <button id="guideBtn">공략도</button>
   <button id="menuBtn">☰ 메뉴</button>
   <div id="gps"></div>
   <div id="dist">
@@ -70,6 +75,7 @@
     <button id="editDone">완료</button>
   </div>
 </div>
+<div id="guide"><div></div></div>
 <div id="tapinfo" style="display:block">💡 지도를 누르면 그 지점까지 거리가 나와요</div>
 
 <div id="bot" class="bar">
@@ -209,6 +215,13 @@ function render(fit) {
   $('dB').textContent = m(dist(myPos, p.b));
   $('sS').textContent = s.s || '-';
   $('sP').textContent = s.p ?? '-';
+  // 공략도: 에덴블루CC 홈페이지 이미지를 그대로 불러옴(저장소엔 안 넣음, 개인용)
+  const g = $('guide'), gi = g.firstChild, t = $('top').offsetHeight, bh = $('bot').offsetHeight;
+  g.classList.toggle('show', !!db.guide);
+  $('guideBtn').classList.toggle('on', !!db.guide);
+  gi.style.backgroundImage = `url(https://www.edenblue.co.kr/image/course/${holeKey(i).toLowerCase()}.jpg)`;
+  gi.style.top = t + (innerHeight - t - bh) / 2 + 'px';
+  gi.style.transform = `translate(-50%,-50%) scale(${Math.min((innerHeight - t - bh - 10) / 615, innerWidth / 320)})`;
   layer.clearLayers();
   for (const k in COLORS) if (p[k]) L.marker(p[k], { icon: dot(COLORS[k]) }).addTo(layer);
   if (p.tee && p.c) {
@@ -271,6 +284,7 @@ document.querySelectorAll('#edit [data-k]').forEach(b => b.onclick = () => {
 $('here').onclick = () => { if (editKey && myPos) { pts()[editKey] = myPos; save(); render(); } };
 $('editDone').onclick = () => { editKey = null; $('edit').classList.remove('show');
   document.querySelectorAll('#edit [data-k]').forEach(x => x.classList.remove('on')); };
+$('guideBtn').onclick = () => { db.guide = !db.guide; save(); render(); };
 $('helpBtn').onclick = () => { menu.close(); help.showModal(); };
 $('editBtn').onclick = () => { menu.close(); $('edit').classList.add('show'); $('edit').querySelector('[data-k]').click(); };
 

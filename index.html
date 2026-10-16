@@ -1,0 +1,273 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#111">
+<title>골프 캐디</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #111; color: #fff; font: 16px system-ui, sans-serif; }
+  button, select { font: inherit; border: 0; border-radius: 10px; padding: 10px 14px; background: #333; color: #fff; }
+  button.on { background: #2a7; }
+  #map { position: fixed; inset: 0; }
+  .bar { position: fixed; left: 0; right: 0; z-index: 1000; padding: 8px; display: flex; gap: 6px; align-items: center;
+         background: rgba(0,0,0,.75); }
+  #top { top: 0; padding-top: max(8px, env(safe-area-inset-top)); flex-wrap: wrap; }
+  #bot { bottom: 0; padding-bottom: max(8px, env(safe-area-inset-bottom)); justify-content: space-between; }
+  #info { flex: 1; font-size: 15px; }
+  #gps { width: 100%; color: #f96; font-size: 12px; }
+  #gps:empty { display: none; }
+  #dist { width: 100%; display: flex; justify-content: space-around; font-variant-numeric: tabular-nums; }
+  #bot button { padding: 10px 12px; }
+  #dist div { text-align: center; font-size: 12px; color: #aaa; }
+  #dist b { display: block; font-size: 26px; color: #fff; }
+  #dist .c b { font-size: 34px; color: #ff0; }
+  #edit { display: none; width: 100%; gap: 6px; flex-wrap: wrap; }
+  #edit.show { display: flex; }
+  #tapinfo { position: fixed; z-index: 1000; left: 50%; transform: translateX(-50%); top: 130px; background: rgba(0,0,0,.8);
+             padding: 6px 12px; border-radius: 10px; display: none; }
+  .score { display: flex; align-items: center; gap: 4px; }
+  .score span { min-width: 30px; text-align: center; font-size: 22px; font-weight: bold; line-height: 1; }
+  .score small { display: block; color: #aaa; font-size: 10px; font-weight: normal; }
+  dialog { background: #222; color: #fff; border: 0; border-radius: 14px; width: min(96vw, 600px); max-height: 90vh; overflow: auto; }
+  dialog::backdrop { background: rgba(0,0,0,.6); }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; text-align: center; }
+  td, th { border: 1px solid #444; padding: 4px 2px; }
+  .menu { display: grid; gap: 8px; }
+  .birdie { color: #6cf; } .bogey { color: #f96; }
+  .pin { width: 14px; height: 14px; border-radius: 50%; border: 2px solid #fff; }
+</style>
+</head>
+<body>
+<div id="map"></div>
+
+<div id="top" class="bar">
+  <div id="info"></div>
+  <button id="menuBtn">☰</button>
+  <div id="gps"></div>
+  <div id="dist">
+    <div>앞<b id="dF">-</b></div>
+    <div class="c">중앙<b id="dC">-</b></div>
+    <div>뒤<b id="dB">-</b></div>
+  </div>
+  <div id="edit">
+    <button data-k="tee">티</button>
+    <button data-k="f">그린 앞</button>
+    <button data-k="c">그린 중앙</button>
+    <button data-k="b">그린 뒤</button>
+    <button id="here">현재위치로</button>
+    <button id="editDone">완료</button>
+  </div>
+</div>
+<div id="tapinfo"></div>
+
+<div id="bot" class="bar">
+  <button id="prev">◀</button>
+  <div class="score"><button data-d="-1" data-f="s">−</button><span><small>타수</small><b id="sS">-</b></span><button data-d="1" data-f="s">+</button></div>
+  <div class="score"><button data-d="-1" data-f="p">−</button><span><small>퍼트</small><b id="sP">-</b></span><button data-d="1" data-f="p">+</button></div>
+  <button id="voice">🔊</button>
+  <button id="next">▶</button>
+</div>
+
+<dialog id="menu">
+  <div class="menu">
+    <h3 style="margin:0">에덴블루CC</h3>
+    <label>전반 <select id="n1"></select></label>
+    <label>후반 <select id="n2"></select></label>
+    <label>티 <select id="teeSel"><option>Black</option><option>Blue</option><option selected>White</option><option>Red</option></select></label>
+    <button id="newRound">새 라운드 시작</button>
+    <button id="cardBtn">스코어카드</button>
+    <button id="editBtn">이 홀 좌표 편집</button>
+    <button id="histBtn">지난 라운드</button>
+    <button id="exportBtn">백업 내보내기</button>
+    <label style="display:block">백업 불러오기 <input type="file" id="importFile" accept=".json"></label>
+    <button onclick="menu.close()">닫기</button>
+  </div>
+</dialog>
+
+<dialog id="card"><div id="cardBody"></div><button onclick="card.close()" style="margin-top:10px">닫기</button></dialog>
+
+<script>
+// 코스 데이터: edenblue.co.kr/course/course_view.asp (단위 m)
+const NINES = {
+  L: { name: '레이크', par: [4,3,4,4,5,3,4,5,4], hdcp: [9,7,3,4,5,6,1,8,2], len: {
+    Black: [336,153,288,350,481,150,403,452,358], Blue: [311,140,272,327,458,130,383,436,338],
+    White: [302,125,249,310,444,116,360,422,318], Red: [272,115,236,287,405,102,307,394,299] } },
+  V: { name: '밸리', par: [4,3,4,4,4,5,4,3,5], hdcp: [9,5,1,4,8,7,6,2,3], len: {
+    Black: [361,156,400,412,306,489,323,181,499], Blue: [346,139,380,388,285,472,302,162,476],
+    White: [325,124,350,369,270,450,293,145,452], Red: [286,119,322,336,265,398,274,100,417] } },
+  M: { name: '마운틴', par: [4,4,4,3,4,4,5,3,5], hdcp: [1,8,3,5,9,6,2,4,7], len: {
+    Black: [416,336,374,189,299,336,525,175,452], Blue: [394,318,350,172,278,315,503,155,433],
+    White: [366,298,326,153,256,298,486,142,418], Red: [258,267,314,135,220,281,444,131,370] } },
+};
+const CENTER = [37.0546, 127.3876]; // OSM 에덴블루CC 경계 중심
+
+// 저장소: pts = 홀 좌표, cur = 진행중 라운드, rounds = 지난 라운드
+let db = { pts: {}, cur: null, rounds: [] };
+try { db = Object.assign(db, JSON.parse(localStorage.golf || '{}')); } catch {}
+const save = () => { try { localStorage.golf = JSON.stringify(db); } catch {} };
+
+const $ = id => document.getElementById(id);
+const R = 6371000, rad = d => d * Math.PI / 180;
+function dist(a, b) {
+  if (!a || !b) return null;
+  const dLat = rad(b[0] - a[0]), dLng = rad(b[1] - a[1]);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a[0])) * Math.cos(rad(b[0])) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+console.assert(Math.round(dist([37, 127], [37.001, 127])) === 111, 'dist check');
+
+// 지도
+const map = L.map('map', { zoomControl: false, attributionControl: false }).setView(CENTER, 16);
+L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+  { maxNativeZoom: 19, maxZoom: 21 }).addTo(map);
+const dot = c => L.divIcon({ html: `<div class="pin" style="background:${c}"></div>`, className: '', iconSize: [14, 14] });
+const COLORS = { tee: '#39f', f: '#fa0', c: '#f33', b: '#a0f' };
+const layer = L.layerGroup().addTo(map);
+const tapLayer = L.layerGroup().addTo(map);
+const me = L.circleMarker(CENTER, { radius: 8, color: '#fff', fillColor: '#09f', fillOpacity: 1 });
+let myPos = null, editKey = null;
+
+// 현재 홀
+const holeKey = i => { const r = db.cur; return r.nines[i < 9 ? 0 : 1] + (i % 9 + 1); };
+const holeInfo = (i, r = db.cur) => { const n = NINES[r.nines[i < 9 ? 0 : 1]], j = i % 9;
+  return { name: n.name, no: j + 1, par: n.par[j], hdcp: n.hdcp[j], len: n.len[r.tee][j] }; };
+const pts = () => db.pts[holeKey(db.cur.hole)] || (db.pts[holeKey(db.cur.hole)] = {});
+const m = v => v == null ? '-' : Math.round(v);
+
+function render(fit) {
+  const r = db.cur, i = r.hole, h = holeInfo(i), p = pts(), s = r.scores[i];
+  $('info').innerHTML = `<b>${i + 1}번홀</b> ${h.name} ${h.no} · Par ${h.par} · ${h.len}m · HC ${h.hdcp}`;
+  $('dF').textContent = m(dist(myPos, p.f));
+  $('dC').textContent = m(dist(myPos, p.c));
+  $('dB').textContent = m(dist(myPos, p.b));
+  $('sS').textContent = s.s || '-';
+  $('sP').textContent = s.p ?? '-';
+  layer.clearLayers();
+  for (const k in COLORS) if (p[k]) L.marker(p[k], { icon: dot(COLORS[k]) }).addTo(layer);
+  if (p.tee && p.c) L.polyline([p.tee, p.c], { color: '#fff', weight: 1, dashArray: '4' }).addTo(layer);
+  if (fit) {
+    const ll = Object.values(p);
+    if (ll.length > 1) map.fitBounds(ll, { padding: [40, 160] });
+    else if (ll.length) map.setView(ll[0], 18);
+    else map.setView(CENTER, 16);
+  }
+}
+
+// 위치 추적
+navigator.geolocation?.watchPosition(e => {
+  myPos = [e.coords.latitude, e.coords.longitude];
+  me.setLatLng(myPos).addTo(map);
+  $('gps').textContent = e.coords.accuracy > 15 ? `GPS 정확도 낮음 (±${Math.round(e.coords.accuracy)}m)` : '';
+  render();
+}, err => $('gps').textContent = '위치 권한 필요: ' + err.message, { enableHighAccuracy: true, maximumAge: 2000 });
+
+// 화면 꺼짐 방지
+let lock;
+const keepAwake = async () => { try { lock = await navigator.wakeLock?.request('screen'); } catch {} };
+document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && keepAwake());
+keepAwake();
+
+// 지도 탭: 편집 모드면 좌표 지정, 아니면 지점까지 거리
+map.on('click', e => {
+  const ll = [e.latlng.lat, e.latlng.lng];
+  if (editKey) { pts()[editKey] = ll; save(); render(); return; }
+  tapLayer.clearLayers();
+  const p = pts(), a = dist(myPos, ll), b = dist(ll, p.c);
+  L.marker(ll, { icon: dot('#fff') }).addTo(tapLayer);
+  if (myPos) L.polyline([myPos, ll], { color: '#ff0', weight: 2 }).addTo(tapLayer);
+  if (p.c) L.polyline([ll, p.c], { color: '#0f0', weight: 2 }).addTo(tapLayer);
+  $('tapinfo').style.display = 'block';
+  $('tapinfo').textContent = `나→지점 ${m(a)}m · 지점→그린 ${m(b)}m`;
+});
+
+// 편집
+document.querySelectorAll('#edit [data-k]').forEach(b => b.onclick = () => {
+  editKey = b.dataset.k;
+  document.querySelectorAll('#edit [data-k]').forEach(x => x.classList.toggle('on', x === b));
+});
+$('here').onclick = () => { if (editKey && myPos) { pts()[editKey] = myPos; save(); render(); } };
+$('editDone').onclick = () => { editKey = null; $('edit').classList.remove('show');
+  document.querySelectorAll('#edit [data-k]').forEach(x => x.classList.remove('on')); };
+$('editBtn').onclick = () => { menu.close(); $('edit').classList.add('show'); $('edit').querySelector('[data-k]').click(); };
+
+// 홀 이동
+const go = d => { const r = db.cur; r.hole = Math.max(0, Math.min(17, r.hole + d)); save();
+  tapLayer.clearLayers(); $('tapinfo').style.display = 'none'; render(true); };
+$('prev').onclick = () => go(-1);
+$('next').onclick = () => go(1);
+
+// 스코어 입력: 첫 + 는 파부터 시작
+document.querySelectorAll('[data-f]').forEach(b => b.onclick = () => {
+  const s = db.cur.scores[db.cur.hole], f = b.dataset.f, d = +b.dataset.d;
+  if (f === 's') s.s = Math.max(1, s.s ? s.s + d : holeInfo(db.cur.hole).par);
+  else s.p = Math.max(0, (s.p ?? 0) + d);
+  save(); render();
+});
+
+// 음성
+$('voice').onclick = () => {
+  const p = pts(), c = dist(myPos, p.c);
+  const t = c == null ? (myPos ? '그린 좌표가 없습니다' : '위치를 찾는 중입니다')
+    : `그린 중앙까지 ${Math.round(c)}미터` + (p.f ? `, 앞 ${Math.round(dist(myPos, p.f))}` : '') + (p.b ? `, 뒤 ${Math.round(dist(myPos, p.b))}` : '');
+  const u = new SpeechSynthesisUtterance(t); u.lang = 'ko-KR'; speechSynthesis.cancel(); speechSynthesis.speak(u);
+};
+
+// 메뉴
+for (const id of ['n1', 'n2']) $(id).innerHTML = Object.entries(NINES).map(([k, n]) => `<option value="${k}">${n.name}</option>`).join('');
+$('n2').value = 'V';
+$('menuBtn').onclick = () => menu.showModal();
+const newRound = () => ({ date: new Date().toISOString().slice(0, 10), nines: [$('n1').value, $('n2').value],
+  tee: $('teeSel').value, hole: 0, scores: Array.from({ length: 18 }, () => ({ s: 0, p: null })) });
+$('newRound').onclick = () => {
+  if (db.cur && db.cur.scores.some(s => s.s)) db.rounds.unshift(db.cur);
+  db.cur = newRound(); save(); menu.close(); render(true);
+};
+
+// 스코어카드
+function cardHtml(r) {
+  const row = (lab, f) => `<tr><th>${lab}</th>${[0, 1].map(h => {
+    const v = Array.from({ length: 9 }, (_, j) => f(h * 9 + j));
+    return v.map(x => `<td>${x.html ?? x}</td>`).join('') + `<th>${v.reduce((a, x) => a + (+(x.n ?? x) || 0), 0) || ''}</th>`;
+  }).join('')}</tr>`;
+  const tot = r.scores.reduce((a, s) => a + s.s, 0);
+  const parPlayed = r.scores.reduce((a, s, i) => a + (s.s ? holeInfo(i, r).par : 0), 0);
+  return `<h3>${r.date} · ${NINES[r.nines[0]].name}/${NINES[r.nines[1]].name} · ${r.tee}</h3>
+  <div style="overflow-x:auto"><table>
+  <tr><th>홀</th>${[1, 2].map(h => [...Array(9)].map((_, j) => `<th>${(h - 1) * 9 + j + 1}</th>`).join('') + `<th>${h === 1 ? '전' : '후'}</th>`).join('')}</tr>
+  ${row('Par', i => holeInfo(i, r).par)}
+  ${row('타수', i => { const s = r.scores[i].s, d = s - holeInfo(i, r).par;
+    return { n: s, html: s ? `<span class="${d < 0 ? 'birdie' : d > 0 ? 'bogey' : ''}">${s}</span>` : '' }; })}
+  ${row('퍼트', i => r.scores[i].p ?? '')}
+  </table></div>
+  <p>합계 <b>${tot || '-'}</b> ${tot ? `(${tot - parPlayed >= 0 ? '+' : ''}${tot - parPlayed})` : ''}</p>`;
+}
+$('cardBtn').onclick = () => { menu.close(); $('cardBody').innerHTML = cardHtml(db.cur); card.showModal(); };
+$('histBtn').onclick = () => { menu.close();
+  $('cardBody').innerHTML = db.rounds.length ? db.rounds.map(cardHtml).join('<hr>') : '지난 라운드가 없습니다.';
+  card.showModal(); };
+
+// 백업 (좌표 + 라운드 전체)
+$('exportBtn').onclick = () => {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(db)], { type: 'application/json' }));
+  a.download = `golf-backup-${new Date().toISOString().slice(0, 10)}.json`; a.click();
+};
+$('importFile').onchange = async e => {
+  try {
+    const d = JSON.parse(await e.target.files[0].text());
+    if (!d.pts || !Array.isArray(d.rounds)) throw 0;
+    db = d; save(); menu.close(); render(true);
+  } catch { alert('백업 파일 형식이 아닙니다'); }
+};
+
+if (!db.cur) db.cur = newRound();
+render(true);
+</script>
+</body>
+</html>

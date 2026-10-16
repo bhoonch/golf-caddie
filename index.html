@@ -7,9 +7,9 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#111">
 <title>골프 캐디</title>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/leaflet-rotate@0.2.8/dist/leaflet-rotate.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" crossorigin="anonymous">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/leaflet-rotate@0.2.8/dist/leaflet-rotate.min.js" crossorigin="anonymous"></script>
 <style>
   * { box-sizing: border-box; }
   html, body { margin: 0; height: 100%; background: #111; color: #fff; font: 16px system-ui, sans-serif; }
@@ -24,7 +24,7 @@
   #gps { width: 100%; color: #f96; font-size: 12px; }
   #gps:empty { display: none; }
   #dist { width: 100%; display: flex; justify-content: space-around; font-variant-numeric: tabular-nums; }
-  #bot button { padding: 10px 12px; }
+  #bot button { padding: 10px 8px; }
   #dist div { text-align: center; font-size: 12px; color: #aaa; }
   #dist b { display: block; font-size: 26px; color: #fff; }
   #dist .c b { font-size: 34px; color: #ff0; }
@@ -41,7 +41,9 @@
   td, th { border: 1px solid #444; padding: 4px 2px; }
   .menu { display: grid; gap: 8px; }
   .birdie { color: #6cf; } .bogey { color: #f96; }
-  #bot button small, #voice small { display: block; font-size: 10px; color: #aaa; }
+  #bot button small, #voice small { display: block; font-size: 10px; color: #aaa; white-space: nowrap; }
+  #top button { padding: 8px 10px; white-space: nowrap; }
+  #bot { gap: 4px; padding-left: 4px; padding-right: 4px; }
   #help ol { padding-left: 20px; line-height: 1.6; } #help li { margin-bottom: 6px; }
   #editHint { width: 100%; font-size: 13px; color: #ff0; }
   .ring { color: #fff; font: bold 12px system-ui; text-shadow: 0 0 3px #000, 0 0 3px #000; white-space: nowrap; }
@@ -59,6 +61,7 @@
 
 <div id="top" class="bar">
   <div id="info"></div>
+  <button id="shotBtn">샷 거리</button>
   <button id="guideBtn">공략도</button>
   <button id="menuBtn">☰ 메뉴</button>
   <div id="gps"></div>
@@ -99,6 +102,7 @@
     <button id="cardBtn">스코어카드</button>
     <button id="editBtn">이 홀 좌표 편집</button>
     <button id="histBtn">지난 라운드</button>
+    <button id="offlineBtn">오프라인 준비 (와이파이에서 1번)</button>
     <button id="exportBtn">백업 내보내기</button>
     <label style="display:block">백업 불러오기 <input type="file" id="importFile" accept=".json"></label>    <button onclick="menu.close()">닫기</button>
   </div>
@@ -113,6 +117,8 @@
     <li><b>타수 +</b>는 누를 때마다 1타씩 올라가요. 퍼트도 같아요 (퍼트도 타수에 포함해서 세요).</li>
     <li><b>지도를 누르면</b> 나→그 지점, 그 지점→그린 거리가 나옵니다 (레이업·벙커 확인용).</li>
     <li><b>[🔊 거리듣기]</b>: 화면 안 보고 거리를 음성으로.</li>
+    <li><b>[샷 거리]</b>: 치기 전 공 옆에서 누르고 공까지 걸어가면 친 거리가 나와요. 다음 샷 때 다시 누르면 거기서부터 다시 재요.</li>
+    <li>신호 약한 골프장 대비: 집 와이파이에서 메뉴 → <b>[오프라인 준비]</b>를 한 번 눌러두세요.</li>
     <li>그린 위치가 틀리면 메뉴 → <b>[이 홀 좌표 편집]</b>.</li>
     <li>기록은 이 폰에만 저장돼요. 폰 바꾸기 전엔 메뉴 → <b>[백업 내보내기]</b>.</li>
   </ol>
@@ -165,6 +171,7 @@ const DEFAULT_PTS = {
   M8: {tee:[37.051136,127.388052],f:[37.05225,127.387417],c:[37.05233,127.387371],b:[37.052437,127.38731]},
   M9: {tee:[37.053704,127.388427],f:[37.056152,127.385795],c:[37.056236,127.385705],b:[37.056319,127.385615]},
 };
+const guideUrl = k => `https://www.edenblue.co.kr/image/course/${k.toLowerCase()}.jpg`;
 // 공략도 이미지(1000x816)에서 찾은 [핀 x,y, 화이트티 x,y] 픽셀
 const GUIDE = { L1:[258,322,216,663], L2:[257,400,240,632], L3:[247,343,253,637], L4:[248,312,255,675], L5:[262,296,280,700], L6:[272,393,277,589], L7:[220,312,260,696], L8:[227,283,260,689], L9:[234,308,226,679], V1:[252,301,253,679], V2:[224,396,259,614], V3:[248,292,253,700], V4:[238,277,244,690], V5:[246,301,263,673], V6:[271,271,257,707], V7:[198,320,210,629], V8:[211,363,212,608], V9:[230,278,231,708], M1:[219,297,212,655], M2:[201,323,234,674], M3:[201,309,222,689], M4:[227,368,235,618], M5:[236,334,250,635], M6:[211,333,215,676], M7:[236,308,241,705], M8:[233,392,234,630], M9:[237,292,232,702] };
 // 내 위치 → 공략도 픽셀: 그린을 핀에 맞추고, 티→그린 방향을 그림의 화이트티→핀 방향으로 회전,
@@ -208,9 +215,9 @@ console.assert(Math.round(azim([37, 127], [37, 127.001])) === 90, 'azim check');
 const map = L.map('map', { zoomControl: false, attributionControl: false, rotate: true, rotateControl: false, touchRotate: false, zoomSnap: 0.25 }).setView(CENTER, 16);
 // 브이월드(국토부) 항공사진 19레벨. 타일이 실패하면 아래 Esri(한국은 18레벨까지)가 보임
 L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-  { maxNativeZoom: 18, maxZoom: 21 }).addTo(map);
+  { maxNativeZoom: 18, maxZoom: 21, crossOrigin: true }).addTo(map);
 L.tileLayer('https://xdworld.vworld.kr/2d/Satellite/service/{z}/{x}/{y}.jpeg',
-  { maxNativeZoom: 19, maxZoom: 21 }).addTo(map);
+  { maxNativeZoom: 19, maxZoom: 21, crossOrigin: true }).addTo(map);
 const dot = c => L.divIcon({ html: `<div class="pin" style="background:${c}"></div>`, className: '', iconSize: [14, 14] });
 const COLORS = { tee: '#39f', f: '#fa0', c: '#f33', b: '#a0f' };
 const layer = L.layerGroup().addTo(map);
@@ -239,13 +246,15 @@ function render(fit) {
   const g = $('guide'), gi = g.firstChild, t = $('top').offsetHeight, bh = $('bot').offsetHeight;
   g.classList.toggle('show', !!db.guide);
   $('guideBtn').classList.toggle('on', !!db.guide);
-  gi.style.backgroundImage = `url(https://www.edenblue.co.kr/image/course/${holeKey(i).toLowerCase()}.jpg)`;
+  gi.style.backgroundImage = `url(${guideUrl(holeKey(i))})`;
   gi.style.top = t + (innerHeight - t - bh) / 2 + 'px';
   gi.style.transform = `translate(-50%,-50%) scale(${Math.min((innerHeight - t - bh - 10) / 615, innerWidth / 320)})`;
   const gm = $('gme'), gp = GUIDE[holeKey(i)];
   const gxy = gp && myPos && p.tee && p.c && dist(myPos, p.c) < 600 && guideXY(gp, p.tee, p.c, myPos, NINES[r.nines[i < 9 ? 0 : 1]].len.White[i % 9]);
   gm.style.display = gxy && gxy[0] > 90 && gxy[0] < 410 && gxy[1] > 185 && gxy[1] < 800 ? 'block' : 'none';
   if (gxy) { gm.style.left = gxy[0] - 90 + 'px'; gm.style.top = gxy[1] - 185 + 'px'; }
+  $('shotBtn').textContent = r.shot ? `샷 ${myPos ? m(dist(r.shot, myPos)) : '-'}m` : '샷 거리';
+  $('shotBtn').classList.toggle('on', !!r.shot);
   layer.clearLayers();
   for (const k in COLORS) if (p[k]) L.marker(p[k], { icon: dot(COLORS[k]) }).addTo(layer);
   if (p.tee && p.c) {
@@ -309,11 +318,42 @@ $('here').onclick = () => { if (editKey && myPos) { pts()[editKey] = myPos; save
 $('editDone').onclick = () => { editKey = null; $('edit').classList.remove('show');
   document.querySelectorAll('#edit [data-k]').forEach(x => x.classList.remove('on')); };
 $('guideBtn').onclick = () => { db.guide = !db.guide; save(); render(); };
+// 샷 거리: 누른 곳부터 지금 위치까지. 다시 누르면 지금 위치에서 새로 시작, 홀 넘기면 끝
+$('shotBtn').onclick = () => {
+  if (!myPos) { $('gps').textContent = '위치를 찾는 중이라 샷 거리를 시작할 수 없어요'; return; }
+  db.cur.shot = myPos; save(); render();
+};
+
+// 오프라인 준비: 27홀 공략도 + 코스 범위 위성 타일(16~19레벨)을 미리 받아 sw.js 캐시에 넣음
+navigator.serviceWorker?.register('sw.js');
+function tileUrls() {
+  const all = Object.values(DEFAULT_PTS).flatMap(p => Object.values(p)), M = 0.002;
+  const la = all.map(q => q[0]), lo = all.map(q => q[1]), out = [];
+  const tx = (x, z) => Math.floor((x + 180) / 360 * 2 ** z);
+  const ty = (y, z) => Math.floor((1 - Math.asinh(Math.tan(rad(y))) / Math.PI) / 2 * 2 ** z);
+  for (let z = 16; z <= 19; z++)
+    for (let x = tx(Math.min(...lo) - M, z); x <= tx(Math.max(...lo) + M, z); x++)
+      for (let y = ty(Math.max(...la) + M, z); y <= ty(Math.min(...la) - M, z); y++)
+        out.push(`https://xdworld.vworld.kr/2d/Satellite/service/${z}/${x}/${y}.jpeg`);
+  return out;
+}
+$('offlineBtn').onclick = async () => {
+  const b = $('offlineBtn'); if (!navigator.serviceWorker) return b.textContent = '이 브라우저는 오프라인 저장을 지원하지 않아요';
+  b.disabled = true; await navigator.serviceWorker.ready;
+  const jobs = [...Object.keys(GUIDE).map(k => [guideUrl(k), 'no-cors']), ...tileUrls().map(u => [u, 'cors'])];
+  let n = 0, bad = 0;
+  for (let i = 0; i < jobs.length; i += 8)
+    await Promise.all(jobs.slice(i, i + 8).map(([u, mode]) => fetch(u, { mode }).catch(() => bad++)
+      .finally(() => b.textContent = `저장 중 ${++n}/${jobs.length}`)));
+  b.textContent = bad ? `완료 (실패 ${bad}개, 다시 누르면 재시도)` : '오프라인 준비 완료 ✓';
+  b.disabled = false;
+};
+
 $('helpBtn').onclick = () => { menu.close(); help.showModal(); };
 $('editBtn').onclick = () => { menu.close(); $('edit').classList.add('show'); $('edit').querySelector('[data-k]').click(); };
 
 // 홀 이동
-const go = d => { const r = db.cur; r.hole = Math.max(0, Math.min(17, r.hole + d)); save();
+const go = d => { const r = db.cur; r.shot = null; r.hole = Math.max(0, Math.min(17, r.hole + d)); save();
   tapLayer.clearLayers(); $('tapinfo').style.display = 'none'; render(true); };
 $('prev').onclick = () => go(-1);
 $('next').onclick = () => go(1);
